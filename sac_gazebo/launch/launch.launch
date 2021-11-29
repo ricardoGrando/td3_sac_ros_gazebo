@@ -1,0 +1,93 @@
+<!-- <launch>
+  <node pkg="deep_rl_navigation" type="deep_rl_gazebo.py" name="deep_rl_gazebo" output="screen" />
+</launch> -->
+<launch>
+  <arg name="world_name" default="stage_1_aerial"/>
+  <arg name="enable_logging" default="false" />
+  <arg name="enable_ground_truth" default="true" />
+  <arg name="debug" default="false"/>
+  <arg name="gui" default="true"/>
+  <arg name="paused" default="false"/>
+  <arg name="namespace" default="hydrone_aerial_underwater" doc="Namespace to spawn the vehicle"/>
+  <arg name="x" default="0.0" doc="X coordinate of the vehicle's initial position (in ENU)"/>
+  <arg name="y" default="0.0" doc="Y coordinate of the vehicle's initial position (in ENU)"/>
+  <arg name="z" default="2.5" doc="Z coordinate of the vehicle's initial position (in ENU)"/>
+  <arg name="roll" default="0.0" doc="Roll angle of the vehicle's initial orientation"/>
+  <arg name="pitch" default="0.0" doc="Pitch angle of the vehicle's initial orientation"/>
+  <arg name="yaw" default="0.0" doc="Yaw angle of the vehicle's initial orientation"/>
+  <arg name="verbose" default="false"/>
+
+  <arg name="n_games_" default="1000"/>
+  <arg name="ep_start_" default="0"/>
+  <arg name="lr_" default="0.0001"/>
+  <arg name="gamma_" default="0.99"/>
+  <arg name="max_mem_" default="50000"/>
+  <arg name="bs_" default="256"/>
+  <arg name="replace_" default="1000"/>
+  <arg name="gpu_" default="0"/>
+  <arg name="load_checkpoints_" default="False"/>
+  <arg name="path_" default="$(find sac_gazebo)/scripts/model/sac"/>
+  <arg name="st_dim" default="24"/>
+  <arg name="ac_dim" default="2"/>
+  <arg name="normal_value" default="0.25"/>
+  <arg name="las_samples" default="20"/>
+  <arg name="environment_name" default="hydrone_aerial_underwater"/>
+  <arg name="max_act" default="1."/>
+  <arg name="min_act" default="-1.0"/>
+
+  <!-- We resume the logic in empty_world.launch, changing only the name of the world to be launched -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+      <arg name="world_name"  value="$(find hydrone_aerial_underwater_ddpg)/worlds/$(arg world_name).world"/>
+      <arg name="paused" value="$(arg paused)"/>
+      <arg name="use_sim_time" value="true"/>
+      <arg name="gui" value="$(arg gui)"/>
+      <arg name="headless" value="false"/>
+      <arg name="debug" value="false"/>
+      <arg name="verbose" value="true"/>
+  </include>
+
+  <group ns="$(arg namespace)">
+    <param name="robot_description"
+             command="$(find xacro)/xacro '$(find hydrone_aerial_underwater_description)/robots/hydrone_aerial_underwater_aerial.xacro' --inorder
+                      use_simplified_mesh:=false
+                      debug:=$(arg debug)
+                      namespace:=$(arg namespace)
+                      inertial_reference_frame:=world" />
+
+    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+            args="-urdf -x $(arg x) -y $(arg y) -z $(arg z) -R $(arg roll) -P $(arg pitch) -Y $(arg yaw) -model $(arg namespace) -param /$(arg namespace)/robot_description"/>
+    <node name="lee_position_controller_node" pkg="rotors_control" type="lee_position_controller_node" output="screen">
+      <rosparam command="load" file="$(find hydrone_aerial_underwater_gazebo)/resource/lee_controller_hydrone.yaml" />
+      <rosparam command="load" file="$(find hydrone_aerial_underwater_gazebo)/resource/hydrone.yaml" />
+      <remap from="odometry" to="odometry_sensor1/odometry" />
+    </node>
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+  </group>
+
+  <include file="$(find uuv_assistants)/launch/message_to_tf.launch">
+    <arg name="namespace" value="$(arg namespace)"/>
+    <arg name="world_frame" value="world"/>
+    <arg name="child_frame_id" value="/$(arg namespace)/base_link"/>
+  </include>
+
+  <node name="sac_gazebo_velocity" pkg="sac_gazebo" type="velocity.py" />
+
+  <node pkg="sac_gazebo" type="sac_gazebo.py" name="sac_gazebo" output="screen">
+    <param name="n_games"  value="$(arg n_games_)"/>
+    <param name="ep_start"  value="$(arg ep_start_)"/>
+    <param name="lr"  value="$(arg lr_)"/>
+    <param name="max_mem"  value="$(arg max_mem_)"/>
+    <param name="bs"  value="$(arg bs_)"/>
+    <param name="gpu"  value="$(arg gpu_)"/>
+    <param name="load_checkpoints"  value="$(arg load_checkpoints_)"/>
+    <param name="path"  value="$(arg path_)"/>
+    <param name="state_dim"  value="$(arg st_dim)"/>
+    <param name="action_dim"  value="$(arg ac_dim)"/>
+    <param name="norm_value"  value="$(arg normal_value)"/>
+    <param name="laser_samples"  value="$(arg las_samples)"/>
+    <param name="env_name"  value="$(arg environment_name)"/>
+    <param name="max_action"  value="$(arg max_act)"/>
+    <param name="min_action"  value="$(arg min_act)"/>
+  </node>
+</launch>
